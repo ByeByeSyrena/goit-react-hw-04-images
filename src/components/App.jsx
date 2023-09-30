@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import Modal from './Modal/Modal';
 import Searchbar from './Searchbar/Searchbar';
@@ -14,129 +14,102 @@ const AppContainer = styled.div`
   padding-bottom: 24px;
 `;
 
-export class App extends Component {
-  state = {
-    images: [],
-    showModale: false,
-    isLoading: false,
-    searchItem: '',
-    error: null,
-    page: 1,
-    allImagesLoaded: false,
-    selectedImage: null,
-  };
+function App() {
+  const [images, setImages] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchItem, setSearchItem] = useState('');
+  const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [allImagesLoaded, setAllImagesLoaded] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [totalHits, setTotalHits] = useState(0);
 
-  async componentDidUpdate(prevProps, prevState) {
-    const { searchItem, page } = this.state;
-    if (searchItem !== prevState.searchItem || page !== prevState.page) {
-      this.loadImages(searchItem, page);
-    }
-  }
-
-  handleSubmit = searchQuery => {
-    this.setState({
-      searchItem: searchQuery,
-      page: 1,
-      images: [],
-      allImagesLoaded: false,
-      selectedImage: null,
-      totalHits: null,
-    });
-  };
-
-  async loadImages(searchItem, page) {
-    this.setState({ isLoading: true, showModale: false });
+  const loadImages = useCallback(async (searchQuery, pageNum) => {
+    setIsLoading(true);
     try {
-      const images = await fetchImgs(searchItem, page);
-      const { totalHits } = images;
-
-      this.setState(prevState => ({
-        images: [...prevState.images, ...images.hits],
-        totalHits,
-        allImagesLoaded:
-          prevState.images.length + images.hits.length >= totalHits,
-      }));
-
-      if (this.state.images === totalHits) {
-        this.setState({ allImagesLoaded: true });
-      }
+      const fetchedImages = await fetchImgs(searchQuery, pageNum);
+      const { hits, totalHits } = fetchedImages;
+      setTotalHits(totalHits);
+      setImages(prevImages => [...prevImages, ...hits]);
     } catch (error) {
-      this.setState({ error });
+      setError(error);
     } finally {
-      this.setState({ isLoading: false });
+      setIsLoading(false);
     }
-  }
+  }, []);
 
-  showMoreImages = () => {
-    if (!this.state.allImagesLoaded) {
-      this.setState(prevState => ({
-        page: prevState.page + 1,
-      }));
+  useEffect(() => {
+    if (searchItem !== '' || page !== 1) {
+      loadImages(searchItem, page);
+    }
+  }, [searchItem, page, loadImages]);
+
+  useEffect(() => {
+    if (images.length >= totalHits) {
+      setAllImagesLoaded(true);
+    } else {
+      setAllImagesLoaded(false);
+    }
+  }, [images, totalHits]);
+
+  const handleSubmit = searchQuery => {
+    setSearchItem(searchQuery);
+    setPage(1);
+    setImages([]);
+    setAllImagesLoaded(false);
+    setSelectedImage(null);
+  };
+
+  const showMoreImages = () => {
+    if (!allImagesLoaded) {
+      setPage(prevPage => prevPage + 1);
     }
   };
 
-  toggleModal = () => {
-    this.setState(prevState => ({
-      showModale: !prevState.showModale,
-    }));
+  const toggleModal = () => {
+    setShowModal(prevShowModal => !prevShowModal);
   };
 
-  handleBackdropClick = event => {
-    if (event.target === event.currentTarget) {
-      this.toggleModal();
-    }
+  const showSelectedImage = selectedImage => {
+    setSelectedImage(selectedImage);
+    toggleModal();
   };
 
-  showSelectedImage = selectedImage => {
-    this.setState({ selectedImage });
-    this.toggleModal();
-  };
-
-  render() {
-    const {
-      images,
-      isLoading,
-      error,
-      allImagesLoaded,
-      showModale,
-      selectedImage,
-    } = this.state;
-
-    return (
-      <AppContainer>
-        <Searchbar onSubmit={this.handleSubmit} />
-        {error && <p>Whoops, something went wrong: {error.message}</p>}
-        {images.length > 0 && (
-          <ImageGallery images={images} onImageClick={this.showSelectedImage} />
-        )}
-        {isLoading && (
-          <Audio
-            height={80}
-            width={80}
-            radius={9}
-            color="green"
-            ariaLabel="loading"
-            wrapperStyle={{ position: 'absolute', top: '50%', left: '50%' }}
-          />
-        )}
-        {images.length > 0 && (
-          <Button
-            text="Load more"
-            disabled={allImagesLoaded}
-            clickHandle={this.showMoreImages}
-            isLoading={isLoading}
-          />
-        )}
-        {showModale && (
-          <Modal onClick={this.handleBackdropClick}>
-            {selectedImage && (
-              <img src={selectedImage.largeImageURL} alt={selectedImage.tags} />
-            )}
-          </Modal>
-        )}
-      </AppContainer>
-    );
-  }
+  return (
+    <AppContainer>
+      <Searchbar onSubmit={handleSubmit} />
+      {error && <p>Whoops, something went wrong: {error.message}</p>}
+      {images.length > 0 && (
+        <ImageGallery images={images} onImageClick={showSelectedImage} />
+      )}
+      {isLoading && (
+        <Audio
+          height={80}
+          width={80}
+          radius={9}
+          color="green"
+          ariaLabel="loading"
+          wrapperStyle={{ position: 'absolute', top: '50%', left: '50%' }}
+        />
+      )}
+      {images.length > 0 && (
+        <Button
+          text="Load more"
+          disabled={allImagesLoaded}
+          clickHandle={showMoreImages}
+          isLoading={isLoading}
+        />
+      )}
+      {showModal && (
+        <Modal onClick={toggleModal}>
+          {selectedImage && (
+            <img src={selectedImage.largeImageURL} alt={selectedImage.tags} />
+          )}
+        </Modal>
+      )}
+    </AppContainer>
+  );
 }
 
 export default App;

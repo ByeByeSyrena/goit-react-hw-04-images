@@ -15,7 +15,7 @@ const API_KEY = "38857854-067aa7c8dbb389fbf2efb7da8";
             safesearch: 'true',
             q: searchQuery,
             page,
-            per_page: 12,
+            per_page: 100,
         }
     });
      const { hits, totalHits } = data;
